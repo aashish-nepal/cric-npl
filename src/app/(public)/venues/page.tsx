@@ -9,7 +9,7 @@ import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 export const metadata: Metadata = {
   title: "NPL venues",
   description: "Nepal Premier League grounds with match counts, average first-innings scores and venue records.",
-  alternates: { canonical: "/venues" },
+  alternates: { canonical: "/venues", languages: { en: "/venues", ne: "/ne/venues" } },
 };
 
 export default async function VenuesPage() {

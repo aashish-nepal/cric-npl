@@ -11,8 +11,8 @@
 
 ## Unit tests
 
-26 tests across engine/analytics suites. Pure functions with deterministic demo
-fixtures; nothing network-dependent.
+34 tests across engine/analytics, standings, credential-detection and provider-registry
+suites. Pure functions with deterministic demo fixtures; nothing network-dependent.
 
 ## SQL integration harness
 
@@ -24,15 +24,23 @@ exercised with the exact production SQL. `tests/sql/rls.sql` then asserts:
 - anon cannot read unpublished/unplayed data; cannot insert/patch score rows;
 - scorer can record/undo through RPCs but cannot grant roles;
 - users cannot update `profiles.role`/`suspended`;
-- polls validate one-vote-per-user and duplicate attempts are rejected.
+- polls validate one-vote-per-user and duplicate attempts are rejected;
+- `match_events_log` is publicly readable but not writable by anon/authenticated;
+- article revision history is staff-only, while media/tag indexes are public;
+- notifications are readable only by their owner.
 
 ## Playwright e2e
 
-`playwright.config.ts` boots `npm run dev` itself (or reuses
-`PLAYWRIGHT_BASE_URL`), tests both desktop (1440×1000) and mobile (iPhone metrics).
+`playwright.config.ts` boots a dedicated demo server on `127.0.0.1:3100` with its own
+`.next-e2e` output directory. It forces invalid Supabase placeholders and test-only demo
+accounts, so a developer's `.env.local` or hosted project cannot change the test data.
+Set `PLAYWRIGHT_BASE_URL` only when intentionally testing a separately managed server.
+The suite covers Chromium desktop and Pixel 7 mobile layouts.
 
 - `tests/e2e/public.spec.ts` — homepage surfaces, live & match centre, points table,
-  news article open, RSS + sitemap + robots, Nepali landing, 404 page.
+  statistics overview + all seven leaderboard sub-routes, team-filter navigation,
+  news article open, RSS + sitemap + robots, Nepali landing + every `/ne` section
+  route, sitemap coverage for localized/statistics URLs, 404 page.
 - `tests/e2e/auth.spec.ts` — unauthenticated `/admin` bounces to login, demo admin
   sign-in → console → sign-out, fan sign-in → fan zone, invalid credentials rejected.
 - `tests/e2e/admin-scoring.spec.ts` — record a four then undo it on the live demo
@@ -40,6 +48,10 @@ exercised with the exact production SQL. `tests/sql/rls.sql` then asserts:
 - `tests/e2e/admin-news.spec.ts` — editor creates an article (published mode), it is
   publicly visible immediately at `/news/{slug}`, and editable from the list; moderation
   page loads.
+- `tests/e2e/admin-competitions.spec.ts` — admin creates a season and a venue through
+  the competition console and sees them listed.
+- `tests/e2e/public.spec.ts` — editorial and corrections policy pages render and appear in
+  the sitemap.
 
 Two deliberate pieces of test infrastructure:
 
@@ -48,13 +60,25 @@ Two deliberate pieces of test infrastructure:
 - Demo backend mutations during e2e (fixtures/articles/recorded balls) are in-memory
   and reset on server restart, which keeps the suite self-contained.
 
-## Verified locally vs not verified
+## Executed QA report (2026-11-08)
 
-- **Verified:** every cell of the table above, on this machine, including the SQL
-  harness against a real local Postgres 14.
-- **Not verified:** the Supabase adapter against a hosted Supabase project (no
-  credentials exist), and any cloud deployment. Those are documented in
-  `docs/OPERATIONS.md` and `docs/DEPLOYMENT.md`.
+| Check | Expected result | Actual result | Status |
+| --- | --- | --- | --- |
+| `npm run lint` | No ESLint errors | Passed | Pass |
+| `npm run typecheck` | No TypeScript errors | Passed | Pass |
+| `npm test` | Unit suite passes | 34 tests across 5 files passed | Pass |
+| `npm run db:test:rls` | Migrations apply; RLS and scoring RPC assertions pass | Passed against local PostgreSQL 14, including migration `0004` | Pass |
+| `npm run test:e2e` | Public, admin, auth and mobile flows pass | 33 tests passed: 21 Chromium desktop and 12 mobile | Pass |
+| `NEXT_DIST_DIR=.next-build npm run build` | Production compile, static generation and trace collection complete | Passed; all configured routes generated using Next.js 16 Webpack | Pass |
+| Turbopack diagnostic in this sandbox | Build completes | Worker failed to bind a port (`Operation not permitted`). The release build script uses the supported Webpack compiler. | Environment blocked |
+| Hosted Supabase read-only probe | Public schema is reachable | HTTP 200 for `seasons`, `teams`, `players`, `venues`, `matches`, `ball_events` and `news_articles`; one season and zero rows in the other six tables. Five representative `0004` tables responded. | Pass, read-only only |
+| Hosted Auth/write/Realtime smoke | Authorized staff can sign in, score and receive a live update | Not exercised; demo credentials were rejected by hosted Auth and no hosted write was made | Not run |
+| Lighthouse/accessibility audit | Target mobile routes meet agreed thresholds | Not run | Not run |
+| Vercel/Cloudflare deployment | Preview and production smoke checks pass | No deployment credentials/domain configuration available; no deployment attempted | Not run |
+
+The hosted probe used only public, read-only requests. It confirms endpoint/schema
+reachability, not that hosted admin workflows, RLS mutations, Storage or Realtime are
+production-ready. No Supabase rows or credentials were changed by these checks.
 
 ## Manual QA checklist (no CI needed)
 

@@ -25,16 +25,22 @@ Rendered server-side, validated against schema.org types:
 - `src/app/sitemap.ts` — dynamic sitemap including static routes and every
   published article, match, team, player, season, venue and guide. Demo backend
   drives it locally; the Supabase adapter drives it in production.
+- Editorial and corrections policy pages are public, canonical and included in the
+  sitemap.
 - `src/app/robots.ts` — allows all crawlers, blocks `/admin`, `/api`, `/auth`,
   and links the sitemap.
 
-## Multilingual plan (`/ne`)
+## Multilingual (`/ne`)
 
-- `/ne` ships a fully-translated Nepali landing page with `lang="ne"` metadata;
-- all copy strings are normalized through locale-aware copy modules so adding full
-  `/ne/*` mirrors is a translation exercise, not a code fork;
-- `alternates.languages` hooks are in place for future hreflang pairs
-  (`en` ↔ `ne`) to be emitted per-route when full mirrors ship.
+- `/ne` ships a fully-translated Nepali landing page with `lang="ne"` metadata.
+- Localized section routes are live: `/ne/live`, `/ne/fixtures`, `/ne/results`,
+  `/ne/points-table`, `/ne/teams`, `/ne/players`, `/ne/statistics`, `/ne/news`,
+  `/ne/seasons`, `/ne/venues` and `/ne/fan-zone`.
+- Each localized route emits `alternates.languages` (`en` ↔ `ne`) and the English
+  counterparts emit the matching pair, so crawlers receive reciprocal hreflang hints.
+- Proper nouns (team, player and venue names) are intentionally not machine-translated;
+  editorial articles remain in their authored language and the Nepali index labels this
+  explicitly.
 
 ## Performance budget
 

@@ -204,5 +204,65 @@ begin
   if v_summary <> 'Test update by admin' then raise exception 'admin update did not persist'; end if;
 end $$;
 
+-- ---------------------------------------------------------------- realtime + completion tables
 reset role;
+insert into public.article_tags (article_id, tag) values (:'article_pub', 'test');
+insert into public.media_assets (bucket, path, url, mime_type, size_bytes)
+values ('media', 'tests/cover.jpg', 'https://example.test/cover.jpg', 'image/jpeg', 1024);
+insert into public.news_article_revisions (article_id, editor_id, title, excerpt, body, status)
+values (:'article_pub', :'admin', 'Published test article', 'Excerpt', 'Revision body', 'published');
+insert into public.notifications (user_id, type, title, body) values (:'fan', 'system', 'Test notification', 'Hello');
+
+-- Anon can read the public realtime feed and editorial tag/media indexes...
+select set_config('request.jwt.claim.sub', '', false);
+set role anon;
+do $$
+declare
+  v_events integer;
+  v_tags integer;
+  v_media integer;
+begin
+  select count(*) into v_events from public.match_events_log;
+  select count(*) into v_tags from public.article_tags;
+  select count(*) into v_media from public.media_assets;
+  if v_events < 1 then raise exception 'anon should read match_events_log, got % rows', v_events; end if;
+  if v_tags <> 1 then raise exception 'anon should read article_tags, got % rows', v_tags; end if;
+  if v_media <> 1 then raise exception 'anon should read media_assets, got % rows', v_media; end if;
+end $$;
+
+-- ...but cannot fabricate live events or read staff-only revision history.
+select public.expect_error(
+  format('insert into public.match_events_log (match_id, event_type) values (%L, %L)', :'match', 'ball_events'),
+  'permission denied'
+);
+select public.expect_error('select * from public.news_article_revisions', 'permission denied');
+select public.expect_error('select * from public.notifications', 'permission denied');
+reset role;
+
+-- Staff can read revision history; a fan can read only their own notifications.
+select set_config('request.jwt.claim.sub', :'admin', false);
+set role authenticated;
+do $$
+declare
+  v_revisions integer;
+begin
+  select count(*) into v_revisions from public.news_article_revisions;
+  if v_revisions <> 1 then raise exception 'staff should read revisions, got %', v_revisions; end if;
+end $$;
+reset role;
+
+select set_config('request.jwt.claim.sub', :'fan', false);
+set role authenticated;
+do $$
+declare
+  v_own integer;
+  v_all integer;
+begin
+  select count(*) into v_own from public.notifications where user_id = '00000000-0000-4000-8000-0000000000f1';
+  select count(*) into v_all from public.notifications;
+  if v_own <> 1 then raise exception 'fan should read own notification, got %', v_own; end if;
+  if v_all <> 1 then raise exception 'fan should not read other notifications, got %', v_all; end if;
+end $$;
+reset role;
+
 \echo 'RLS and scoring integration tests passed.'

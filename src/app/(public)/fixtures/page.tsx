@@ -11,7 +11,7 @@ import { cn, formatKathmanduDate } from "@/lib/utils";
 export const metadata: Metadata = {
   title: "NPL fixtures and schedule",
   description: "The full Nepal Premier League fixture list, grouped by date, with venues and Nepal Standard Time kick-offs.",
-  alternates: { canonical: "/fixtures" },
+  alternates: { canonical: "/fixtures", languages: { en: "/fixtures", ne: "/ne/fixtures" } },
 };
 
 export default async function FixturesPage({ searchParams }: { searchParams: Promise<{ season?: string }> }) {

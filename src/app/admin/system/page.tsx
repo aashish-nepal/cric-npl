@@ -11,7 +11,9 @@ import {
 import { getAdminOverview } from "@/services/admin";
 import { requirePermission } from "@/lib/auth/session";
 import { getRepository } from "@/lib/data";
-import { AdminPageHeading } from "@/components/admin/page-heading";
+import { AdminPageHeading, FlashMessages } from "@/components/admin/page-heading";
+import { SubmitButton } from "@/components/admin/submit-button";
+import { runProviderSyncAction } from "@/app/actions/admin";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -37,9 +39,13 @@ function EnvRow({ label, configured, note }: { label: string; configured: boolea
   );
 }
 
-export default async function AdminSystemPage() {
+export default async function AdminSystemPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ message?: string; error?: string }>;
+}) {
   await requirePermission("system.manage");
-  const overview = await getAdminOverview();
+  const [{ message, error }, overview] = await Promise.all([searchParams, getAdminOverview()]);
   const repository = getRepository();
   const supabaseUrl = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL);
   const supabaseAnon = Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
@@ -53,6 +59,7 @@ export default async function AdminSystemPage() {
         title="System health"
         description="Runtime configuration, data source, provider sync and the complete audit trail. Secrets are never displayed."
       />
+      <FlashMessages message={message} error={error} />
 
       <div className="grid gap-5 xl:grid-cols-[1fr_1fr]">
         <Card>
@@ -163,8 +170,14 @@ export default async function AdminSystemPage() {
         </Card>
 
         <Card>
-          <CardHeader>
+          <CardHeader className="flex-row items-center justify-between gap-2">
             <CardTitle>Provider sync log</CardTitle>
+            <form action={runProviderSyncAction}>
+              <SubmitButton size="sm" variant="secondary" pendingLabel="Running…">
+                <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+                Run sync
+              </SubmitButton>
+            </form>
           </CardHeader>
           <CardContent className="pt-0">
             {overview.syncLogs.length === 0 ? (

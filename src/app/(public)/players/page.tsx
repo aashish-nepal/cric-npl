@@ -11,7 +11,7 @@ import type { PlayerRole } from "@/types/cricket";
 export const metadata: Metadata = {
   title: "NPL players and squads",
   description: "Browse every Nepal Premier League player with roles, teams, season runs, wickets and profile pages.",
-  alternates: { canonical: "/players" },
+  alternates: { canonical: "/players", languages: { en: "/players", ne: "/ne/players" } },
 };
 
 const ROLES: Array<{ value: PlayerRole | "all"; label: string }> = [

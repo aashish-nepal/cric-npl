@@ -6,6 +6,7 @@ import { SubmitButton } from "./submit-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, Input, Label, Select, Textarea } from "@/components/ui/form";
 import { buttonVariants } from "@/components/ui/button";
+import { ImageUploadField } from "./image-upload-field";
 
 export function ArticleForm({
   article,
@@ -77,10 +78,30 @@ export function ArticleForm({
               <Input id="metaDescription" name="metaDescription" maxLength={400} defaultValue={article?.metaDescription ?? ""} />
             </Field>
           </div>
+          <Field>
+            <Label htmlFor="canonicalUrl">Canonical URL</Label>
+            <Input
+              id="canonicalUrl"
+              name="canonicalUrl"
+              maxLength={2000}
+              defaultValue={article?.canonicalUrl ?? ""}
+              placeholder="/news/example or https://…"
+            />
+            <p className="text-[11px] text-muted-foreground">Leave blank to use the article&apos;s own URL.</p>
+          </Field>
         </CardContent>
       </Card>
 
       <aside className="space-y-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Featured image</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ImageUploadField defaultValue={article?.featuredImage} defaultCaption={article?.imageCaption} />
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle>Publishing</CardTitle>

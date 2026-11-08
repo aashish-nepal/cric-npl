@@ -6,6 +6,7 @@ import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { LeaderBarChart } from "@/components/statistics/leader-chart";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatCard } from "@/components/statistics/stat-card";
+import { StatisticsSubnav } from "@/components/statistics/leaderboard-tables";
 import { JsonLd } from "@/components/seo/json-ld";
 import { breadcrumbJsonLd } from "@/lib/seo";
 import { cn, formatNumber } from "@/lib/utils";
@@ -14,7 +15,7 @@ export const metadata: Metadata = {
   title: "NPL statistics and leaderboards",
   description:
     "Nepal Premier League batting and bowling leaderboards, team records and season statistics, computed from ball-by-ball data.",
-  alternates: { canonical: "/statistics" },
+  alternates: { canonical: "/statistics", languages: { en: "/statistics", ne: "/ne/statistics" } },
 };
 
 export default async function StatisticsPage({ searchParams }: { searchParams: Promise<{ season?: string }> }) {
@@ -43,7 +44,8 @@ export default async function StatisticsPage({ searchParams }: { searchParams: P
       <div className="container-page py-4">
         <Breadcrumbs items={[{ label: "Statistics" }]} />
       </div>
-      <div className="container-page py-4">
+      <div className="container-page space-y-3 pb-2">
+        <StatisticsSubnav current="/statistics" />
         <div className="flex flex-wrap gap-1.5" role="navigation" aria-label="Season filter">
           {site.seasons.map((row) => (
             <Link

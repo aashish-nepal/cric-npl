@@ -19,12 +19,18 @@ when Supabase is not configured. Demo data is labelled; a banner is always visib
 ## 2. Supabase setup (first production boot)
 
 1. Create a project; note the URL and keys.
-2. Run the SQL editor migrations **in order**:
-   `supabase/migrations/0001_schema.sql` → `0002_functions.sql` → `0003_rls.sql`.
+2. Compare the target database with all SQL editor migrations **in order**:
+   `supabase/migrations/0001_schema.sql` → `0002_functions.sql` → `0003_rls.sql` →
+   `0004_realtime_and_completion.sql`. A read-only check found the `0004` tables in the
+   currently configured project; verify the functions, policies, triggers and Storage
+   bucket before applying any migration to an existing database.
    All three are idempotent plain SQL (no bundled CLI assumed).
 3. **Do not** apply `supabase/seed.sql` to production — it is a demo/instructional seed.
-4. Create auth users (Dashboard → Authentication → Add user, email+password) for every
-   scorer/editor/admin. Then assign roles by **direct SQL**:
+4. Set `NEXT_PUBLIC_SITE_URL` and add its `/auth/confirm` URL to Supabase Auth's redirect
+   allow list. Enable public signups in Supabase Auth if visitors should be able to register;
+   self-service registrations create fan (`user`) accounts. The callback supports Supabase's
+   PKCE code flow and token-hash confirmation links. Create auth users (Dashboard → Authentication
+   → Add user, email+password) for staff, then assign their roles by **direct SQL**:
 
    ```sql
    update public.profiles set role = 'admin'  where email = 'ops@yourdomain.com';
@@ -92,5 +98,6 @@ Suspend/block a user: Admins → `/admin/users` (blocks login and actions via RL
 ## 9. Known demo-mode limitations
 
 - Demo backend mutations are in-memory; they vanish on server restart.
-- No realtime is used in demo mode (full Supabase Realtime wiring is only live when
-  the Supabase adapter is active).
+- Demo mode has no Supabase Realtime. Live match pages fall back to a 20-second poll
+  and label the connection state; with valid Supabase credentials they subscribe to
+  `match_events_log` scoped to the match and refresh on each event.

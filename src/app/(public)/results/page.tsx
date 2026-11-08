@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 export const metadata: Metadata = {
   title: "NPL results",
   description: "Completed Nepal Premier League matches with result summaries, scorecards and post-match statistics.",
-  alternates: { canonical: "/results" },
+  alternates: { canonical: "/results", languages: { en: "/results", ne: "/ne/results" } },
 };
 
 export default async function ResultsPage({ searchParams }: { searchParams: Promise<{ season?: string }> }) {

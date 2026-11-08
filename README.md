@@ -1,6 +1,6 @@
 # NPL Cricket Hub
 
-A production-grade, SEO-first platform for live NPL (Nepal Premier League) cricket scores,
+A production-oriented, SEO-first platform for live NPL (Nepal Premier League) cricket scores,
 standings, stats, editorial content and fan engagement. Built with Next.js (App Router),
 TypeScript, Tailwind 4 and Supabase (Postgres / Auth / Realtime / Storage / RLS).
 
@@ -23,10 +23,16 @@ wired up the app runs in a clearly-labelled **demo mode** with a persistent bann
 - **Editorial** — news, categories, guides, RSS feed, category pages.
 - **SEO** — per-page metadata, Open Graph/Twitter cards, canonical URLs, JSON-LD
   (SportsEvent, SportsTeam, Person, Article, BreadcrumbList), dynamic `sitemap.xml`
-  and `robots.txt`, multilingual Nepali landing (`/ne`) ready for full `/ne` routes.
-- **Admin** — dashboard, match management, a real ball-by-ball scoring console with
-  undo, article/workflow publishing, comment moderation, user role management and a
-  runtime-system status page.
+  and `robots.txt`, hreflang alternates and a full Nepali section (`/ne/live`,
+  `/ne/fixtures`, `/ne/results`, `/ne/points-table`, `/ne/statistics`, `/ne/news`,
+  `/ne/teams`, `/ne/players`, `/ne/seasons`, `/ne/venues`, `/ne/fan-zone`).
+- **Live updates** — Supabase Realtime channel per live match fed by
+  `match_events_log`, with duplicate suppression, exponential reconnect and polling
+  fallback in demo mode.
+- **Admin** — dashboard, competition setup (tournaments, seasons, venues), match
+  management, a real ball-by-ball scoring console with undo, article/workflow
+  publishing with image uploads and revision history, comment moderation, user role
+  management and a runtime-system status page with provider sync logging.
 - **Security** — server-side role checks (`requirePermission`) in every admin page/action,
   defense-in-depth `proxy.ts` gate, Supabase RLS policies on all tables, rate-limited
   login/fan actions, HttpOnly session cookies, column grants that block role self-escalation.
@@ -38,9 +44,12 @@ npm install
 npm run dev          # http://localhost:3000
 ```
 
-The app starts in **demo mode** because no Supabase credentials are configured. A banner
-clearly marks demo data (deterministic dataset of NPL-style teams/players/matches, with one
-match mid-second-innings). Demo admin mutations are in-memory and reset on server restart.
+A fresh checkout with no `.env.local` starts in **demo mode** with a deterministic dataset
+of NPL-style teams, players and matches. The persistent banner marks all demo data, and demo
+admin mutations reset when the server restarts. Placeholder values from `.env.example` are
+rejected. A valid Supabase configuration selects the hosted adapter; that project must have
+public data and staff accounts provisioned before it is ready for use. The Playwright suite
+pins its own demo configuration regardless of the developer's local environment.
 
 Demo accounts (local only, no signup):
 
@@ -62,7 +71,8 @@ src/services/       read/view layer per domain (cricket, content, fan, admin)
 src/lib/engine/     pure scoring/analytics engine
 src/lib/data/       CricketRepository contract + demo & supabase adapters
 src/app/actions/    server actions (auth, admin, fan), validated with Zod
-supabase/migrations 0001 schema, 0002 functions (security-definer RPCs), 0003 RLS
+supabase/migrations 0001 schema, 0002 functions (security-definer RPCs), 0003 RLS,
+                    0004 realtime event log + completion tables
 supabase/seed.sql   optional clearly-labelled demo/instructional seed (never use as real data)
 scripts/            local database reset + RLS test harness
 tests/              vitest unit/statistics tests, Playwright e2e specs, SQL RLS tests
@@ -93,17 +103,19 @@ docs/               operators, scoring, security, SEO, data provider, testing, d
 | `docs/TESTING.md` | Test pyramid, what is verified and what is not, how to run suites |
 | `docs/DEPLOYMENT.md` | Vercel + Cloudflare deployment, env matrix, go-live checklist |
 
-## Verified vs unverified (honesty statement)
+## Verification status (2026-11-08)
 
-**Verified locally, this machine:** lint, strict typecheck, 26 unit tests, production build
-(29 routes), 22 Playwright e2e tests (desktop + mobile), SQL RLS + scoring RPC integration
-tests against a local Postgres database, and the demo data pipeline end-to-end.
+**Verified locally:** ESLint, strict TypeScript, 34 Vitest tests, a Webpack production build,
+the local PostgreSQL migration/RLS/scoring harness, and 33 Playwright checks across desktop
+and mobile. See [docs/TESTING.md](docs/TESTING.md) for commands and results.
 
-**Not verified (no credentials available):**
+**Hosted Supabase:** the configured endpoint and representative tables from migration
+`0004` responded to read-only checks. The project currently has one season and no teams, players, venues,
+matches, ball events or published articles. Hosted Auth, write operations and Realtime have
+not been verified; no hosted schema or content was changed during this review.
 
-- Supabase adapter at runtime — migrations and SQL are local-tested, but no Supabase
-  project exists; point `NEXT_PUBLIC_SUPABASE_URL`/keys at a real project to activate,
-  then replay `supabase/migrations/*.sql` through the Supabase SQL editor or CLI.
-- Cloud deployment (Vercel/Cloudflare) — no project/domain credentials provided.
-- External cricket data provider — none integrated or claimed. Scores are manual-only
-  until a provider is chosen, implemented and verified (see `docs/DATA_PROVIDER.md`).
+**Still required for a production launch:** populate the hosted project with verified
+reference data, provision staff accounts, select and verify a licensed cricket data provider
+(or explicitly launch with manual scoring only), configure analytics/Search Console, and
+deploy through Vercel/Cloudflare with the production domain. No cloud deployment or external
+cricket feed is claimed.

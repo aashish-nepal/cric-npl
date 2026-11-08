@@ -15,7 +15,7 @@ import { formatKathmanduDateTime } from "@/lib/utils";
 export const metadata: Metadata = {
   title: "NPL fan zone",
   description: "Vote in NPL fan polls, predict match results and compete on the supporter leaderboard.",
-  alternates: { canonical: "/fan-zone" },
+  alternates: { canonical: "/fan-zone", languages: { en: "/fan-zone", ne: "/ne/fan-zone" } },
 };
 
 export default async function FanZonePage() {

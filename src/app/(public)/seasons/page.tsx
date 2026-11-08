@@ -10,7 +10,7 @@ import { TeamLogo } from "@/components/cricket/identity";
 export const metadata: Metadata = {
   title: "NPL seasons",
   description: "Browse Nepal Premier League seasons, final standings, champions and season-leading players.",
-  alternates: { canonical: "/seasons" },
+  alternates: { canonical: "/seasons", languages: { en: "/seasons", ne: "/ne/seasons" } },
 };
 
 export default async function SeasonsPage() {

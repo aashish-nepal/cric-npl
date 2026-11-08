@@ -10,7 +10,7 @@ import { buttonVariants } from "@/components/ui/button";
 export const metadata: Metadata = {
   title: "NPL teams and squads",
   description: "Profiles for every Nepal Premier League franchise, including squads, form, standings and head-to-head records.",
-  alternates: { canonical: "/teams" },
+  alternates: { canonical: "/teams", languages: { en: "/teams", ne: "/ne/teams" } },
 };
 
 export default async function TeamsPage() {

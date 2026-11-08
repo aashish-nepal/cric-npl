@@ -1,8 +1,9 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { signIn, signOut } from "@/lib/auth/session";
+import { register, signIn, signOut } from "@/lib/auth/session";
 import { rateLimit } from "@/lib/rate-limit";
+import { registrationSchema } from "@/lib/validation";
 
 export async function signInAction(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim();
@@ -26,6 +27,31 @@ export async function signInAction(formData: FormData) {
 
   const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/fan-zone";
   redirect(safeNext);
+}
+
+export async function registerAction(formData: FormData) {
+  const parsed = registrationSchema.safeParse({
+    username: formData.get("username"),
+    email: formData.get("email"),
+    password: formData.get("password"),
+    confirmPassword: formData.get("confirmPassword"),
+  });
+  if (!parsed.success) {
+    redirect(`/auth/register?error=${encodeURIComponent(parsed.error.issues[0]?.message ?? "Check the registration details.")}`);
+  }
+
+  const { username, email, password } = parsed.data;
+  const limit = rateLimit(`register:${email}`, 5, 60 * 60 * 1000);
+  if (!limit.ok) {
+    redirect(`/auth/register?error=${encodeURIComponent("Too many registration attempts. Try again in an hour.")}`);
+  }
+
+  const result = await register(email, password, username);
+  if (!result.ok) {
+    redirect(`/auth/register?error=${encodeURIComponent(result.error ?? "Account creation failed.")}`);
+  }
+  if (result.authenticated) redirect("/fan-zone");
+  redirect("/auth/register?checkEmail=1");
 }
 
 export async function signOutAction() {

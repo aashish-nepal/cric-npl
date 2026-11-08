@@ -199,6 +199,43 @@ export async function signIn(email: string, password: string): Promise<{ ok: boo
   return { ok: true };
 }
 
+export async function register(
+  email: string,
+  password: string,
+  username: string,
+): Promise<{ ok: boolean; authenticated?: boolean; error?: string }> {
+  if (!isSupabaseConfigured()) {
+    return { ok: false, error: "Registration is available when Supabase Auth is configured. Use a local demo account instead." };
+  }
+
+  const supabase = await getSupabaseAuthClient();
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+  let emailRedirectTo: string | undefined;
+  if (siteUrl) {
+    try {
+      const url = new URL(siteUrl);
+      const localHttp = url.protocol === "http:" && (url.hostname === "localhost" || url.hostname === "127.0.0.1");
+      if (url.protocol !== "https:" && !localHttp) {
+        return { ok: false, error: "The site URL must use HTTPS." };
+      }
+      emailRedirectTo = new URL("/auth/confirm", url).toString();
+    } catch {
+      return { ok: false, error: "The site URL is not valid. Check NEXT_PUBLIC_SITE_URL." };
+    }
+  }
+
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: { username },
+      ...(emailRedirectTo ? { emailRedirectTo } : {}),
+    },
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, authenticated: Boolean(data.session) };
+}
+
 export async function signOut(): Promise<void> {
   if (isSupabaseConfigured()) {
     const supabase = await getSupabaseAuthClient();

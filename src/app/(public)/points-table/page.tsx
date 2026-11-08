@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   title: "NPL points table",
   description:
     "The latest Nepal Premier League points table with wins, losses, no results, points and net run rate, calculated from ball-by-ball data.",
-  alternates: { canonical: "/points-table" },
+  alternates: { canonical: "/points-table", languages: { en: "/points-table", ne: "/ne/points-table" } },
 };
 
 export default async function PointsTablePage({ searchParams }: { searchParams: Promise<{ season?: string }> }) {

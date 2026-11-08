@@ -53,10 +53,83 @@ test.describe("public site", () => {
     expect(await rss.text()).toContain("<rss");
   });
 
+  test("editorial and corrections policies are public and discoverable", async ({ page, request }) => {
+    const policyRoutes = [
+      ["/editorial-policy", "Editorial policy"],
+      ["/corrections-policy", "Corrections policy"],
+    ] as const;
+    for (const [route, heading] of policyRoutes) {
+      await page.goto(route);
+      await expect(page.getByRole("heading", { level: 1, name: heading })).toBeVisible();
+      await expect(page.getByRole("link", { name: /contact page/i })).toBeVisible();
+    }
+
+    const sitemap = await request.get("/sitemap.xml");
+    const body = await sitemap.text();
+    expect(body).toContain("/editorial-policy");
+    expect(body).toContain("/corrections-policy");
+  });
+
   test("Nepali landing page is available", async ({ page }) => {
     await page.goto("/ne");
     await expect(page.locator('div[lang="ne"]').first()).toBeVisible();
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  });
+
+  test("statistics leaderboard sub-routes render derived tables", async ({ page }) => {
+    const routes = [
+      "/statistics/batting",
+      "/statistics/bowling",
+      "/statistics/most-runs",
+      "/statistics/most-wickets",
+      "/statistics/most-sixes",
+      "/statistics/best-average",
+      "/statistics/records",
+    ];
+    for (const route of routes) {
+      await page.goto(route);
+      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+      await expect(page.getByRole("table").first()).toBeVisible();
+    }
+  });
+
+  test("statistics team filter narrows the leaderboard", async ({ page }) => {
+    await page.goto("/statistics/batting");
+    const teamFilter = page.getByRole("navigation", { name: "Team filter" }).getByRole("link").nth(1);
+    await expect(teamFilter).toBeVisible();
+    await teamFilter.click();
+    await expect(page).toHaveURL(/team=/);
+    await expect(page.getByRole("table").first()).toBeVisible();
+  });
+
+  test("Nepali section routes render localized navigation", async ({ page }) => {
+    const routes = [
+      "/ne/live",
+      "/ne/fixtures",
+      "/ne/results",
+      "/ne/points-table",
+      "/ne/teams",
+      "/ne/players",
+      "/ne/statistics",
+      "/ne/news",
+      "/ne/seasons",
+      "/ne/venues",
+      "/ne/fan-zone",
+    ];
+    for (const route of routes) {
+      await page.goto(route);
+      await expect(page.locator('div[lang="ne"]').first()).toBeVisible();
+      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    }
+  });
+
+  test("sitemap advertises statistics and Nepali routes", async ({ request }) => {
+    const sitemap = await request.get("/sitemap.xml");
+    const body = await sitemap.text();
+    expect(body).toContain("/statistics/batting");
+    expect(body).toContain("/statistics/records");
+    expect(body).toContain("/ne/live");
+    expect(body).toContain("/ne/statistics");
   });
 
   test("unknown routes show the not-found page", async ({ page }) => {

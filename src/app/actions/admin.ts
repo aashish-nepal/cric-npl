@@ -4,15 +4,21 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getRepository } from "@/lib/data";
 import { requirePermission } from "@/lib/auth/session";
+import { syncProviderSeason } from "@/services/cricket-data/sync";
 import {
   articleSchema,
   ballSchema,
   completeMatchSchema,
   createMatchSchema,
   createPlayerSchema,
+  createSeasonSchema,
   createTeamSchema,
+  createTournamentSchema,
+  createVenueSchema,
   moderationSchema,
+  seasonStatusUpdateSchema,
   squadSchema,
+  updateVenueSchema,
   updateMatchSchema,
   userRoleUpdateSchema,
   userSuspensionSchema,
@@ -193,6 +199,99 @@ export async function createMatchAction(formData: FormData): Promise<void> {
   redirect(`/admin/matches/${matchId}?message=${encodeURIComponent("Fixture created.")}`);
 }
 
+export async function createTournamentAction(formData: FormData): Promise<void> {
+  const session = await requirePermission("competition.manage");
+  const parsed = createTournamentSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    redirect(`/admin/competitions?error=${encodeURIComponent(parsed.error.issues[0]?.message ?? "Invalid tournament")}`);
+  }
+  try {
+    await getRepository().createTournament({ ...parsed.data, actor: actorOf(session) });
+  } catch (error) {
+    redirect(`/admin/competitions?error=${encodeURIComponent(error instanceof Error ? error.message : "Could not create tournament")}`);
+  }
+  revalidatePath("/admin/competitions");
+  revalidatePath("/seasons");
+  redirect(`/admin/competitions?message=${encodeURIComponent("Tournament created.")}`);
+}
+
+export async function createSeasonAction(formData: FormData): Promise<void> {
+  const session = await requirePermission("competition.manage");
+  const parsed = createSeasonSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    redirect(`/admin/competitions?error=${encodeURIComponent(parsed.error.issues[0]?.message ?? "Invalid season")}`);
+  }
+  try {
+    await getRepository().createSeason({ ...parsed.data, actor: actorOf(session) });
+  } catch (error) {
+    redirect(`/admin/competitions?error=${encodeURIComponent(error instanceof Error ? error.message : "Could not create season")}`);
+  }
+  revalidatePath("/admin/competitions");
+  revalidatePath("/seasons");
+  revalidatePath("/");
+  redirect(`/admin/competitions?message=${encodeURIComponent("Season created.")}`);
+}
+
+export async function updateSeasonStatusAction(formData: FormData): Promise<void> {
+  const session = await requirePermission("competition.manage");
+  const parsed = seasonStatusUpdateSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    redirect(`/admin/competitions?error=${encodeURIComponent("Invalid season status")}`);
+  }
+  try {
+    await getRepository().updateSeasonStatus(parsed.data.seasonId, parsed.data.status, actorOf(session));
+  } catch (error) {
+    redirect(`/admin/competitions?error=${encodeURIComponent(error instanceof Error ? error.message : "Could not update season")}`);
+  }
+  revalidatePath("/admin/competitions");
+  revalidatePath("/seasons");
+  revalidatePath("/");
+  revalidatePath("/points-table");
+  redirect(`/admin/competitions?message=${encodeURIComponent(`Season marked ${parsed.data.status}.`)}`);
+}
+
+export async function createVenueAction(formData: FormData): Promise<void> {
+  const session = await requirePermission("competition.manage");
+  const parsed = createVenueSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    redirect(`/admin/venues?error=${encodeURIComponent(parsed.error.issues[0]?.message ?? "Invalid venue")}`);
+  }
+  try {
+    await getRepository().createVenue({ ...parsed.data, actor: actorOf(session) });
+  } catch (error) {
+    redirect(`/admin/venues?error=${encodeURIComponent(error instanceof Error ? error.message : "Could not create venue")}`);
+  }
+  revalidatePath("/admin/venues");
+  revalidatePath("/venues");
+  redirect(`/admin/venues?message=${encodeURIComponent("Venue created.")}`);
+}
+
+export async function updateVenueAction(formData: FormData): Promise<void> {
+  const session = await requirePermission("competition.manage");
+  const parsed = updateVenueSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    redirect(`/admin/venues?error=${encodeURIComponent(parsed.error.issues[0]?.message ?? "Invalid venue")}`);
+  }
+  try {
+    await getRepository().updateVenue(
+      parsed.data.venueId,
+      {
+        name: parsed.data.name,
+        city: parsed.data.city,
+        country: parsed.data.country,
+        capacity: parsed.data.capacity ?? null,
+        description: parsed.data.description,
+      },
+      actorOf(session),
+    );
+  } catch (error) {
+    redirect(`/admin/venues?error=${encodeURIComponent(error instanceof Error ? error.message : "Could not update venue")}`);
+  }
+  revalidatePath("/admin/venues");
+  revalidatePath("/venues");
+  redirect(`/admin/venues?message=${encodeURIComponent("Venue updated.")}`);
+}
+
 export async function createTeamAction(formData: FormData): Promise<void> {
   const session = await requirePermission("competition.manage");
   const parsed = createTeamSchema.safeParse(Object.fromEntries(formData));
@@ -280,6 +379,9 @@ export async function saveArticleAction(formData: FormData): Promise<void> {
           status: parsed.data.status,
           seoTitle: parsed.data.seoTitle || null,
           metaDescription: parsed.data.metaDescription || null,
+          featuredImage: parsed.data.featuredImage,
+          imageCaption: parsed.data.imageCaption || null,
+          canonicalUrl: parsed.data.canonicalUrl,
           featured: parsed.data.featured,
         },
         actor,
@@ -297,6 +399,9 @@ export async function saveArticleAction(formData: FormData): Promise<void> {
         status: parsed.data.status,
         seoTitle: parsed.data.seoTitle || null,
         metaDescription: parsed.data.metaDescription || null,
+        featuredImage: parsed.data.featuredImage,
+        imageCaption: parsed.data.imageCaption || null,
+        canonicalUrl: parsed.data.canonicalUrl,
         featured: parsed.data.featured,
         actor,
       });
@@ -339,6 +444,18 @@ export async function moderateCommentAction(formData: FormData): Promise<void> {
   revalidatePath("/admin/comments");
   revalidatePath("/news");
   redirect(`${returnTo}?message=${encodeURIComponent(`Comment ${parsed.data.status}.`)}`);
+}
+
+export async function runProviderSyncAction(): Promise<void> {
+  await requirePermission("system.manage");
+  const season = await getRepository().getActiveSeason();
+  const result = await syncProviderSeason(season?.id ?? "");
+  revalidatePath("/admin/system");
+  const message =
+    result.log.status === "skipped"
+      ? "No verified provider configured. Sync logged as skipped."
+      : `Sync ${result.log.status}: ${result.fixturesValid} valid / ${result.fixturesRejected} rejected fixture(s).`;
+  redirect(`/admin/system?message=${encodeURIComponent(message)}`);
 }
 
 export async function setUserRoleAction(formData: FormData): Promise<void> {

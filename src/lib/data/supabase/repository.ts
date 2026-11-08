@@ -7,6 +7,7 @@ import type {
   Season,
   SeasonBundle,
   SeasonSettings,
+  SeasonStatus,
   SquadMember,
   Team,
   Tournament,
@@ -25,11 +26,15 @@ import type {
 import type {
   Actor,
   ArticleQuery,
+  ArticleRevision,
   AuditLogEntry,
   CreateArticleInput,
   CreateMatchInput,
   CreatePlayerInput,
+  CreateSeasonInput,
   CreateTeamInput,
+  CreateTournamentInput,
+  CreateVenueInput,
   CricketRepository,
   RecordBallInput,
   SearchResultGroup,
@@ -236,6 +241,11 @@ export class SupabaseRepository implements CricketRepository {
   async getSeasons(): Promise<Season[]> {
     const rows = await this.one<Row[]>(this.db().from("seasons").select("*").order("year", { ascending: false }));
     return rows.map(mapSeason);
+  }
+
+  async getTournaments(): Promise<Tournament[]> {
+    const rows = await this.one<Row[]>(this.db().from("tournaments").select("*").order("name"));
+    return rows.map(mapTournament);
   }
 
   async getActiveSeason(): Promise<Season | null> {
@@ -559,6 +569,33 @@ export class SupabaseRepository implements CricketRepository {
     }));
   }
 
+  async recordSyncLog(entry: Omit<SyncLogEntry, "id">): Promise<SyncLogEntry> {
+    const rows = await this.one<Row[]>(
+      this.db()
+        .from("data_sync_logs")
+        .insert({
+          provider: entry.provider,
+          status: entry.status,
+          message: entry.message,
+          records_processed: entry.recordsProcessed,
+          started_at: entry.startedAt,
+          finished_at: entry.finishedAt,
+        })
+        .select("*"),
+    );
+    const row = rows[0];
+    if (!row) throw new Error("Could not write sync log");
+    return {
+      id: row.id,
+      provider: row.provider,
+      status: row.status,
+      message: row.message ?? "",
+      recordsProcessed: row.records_processed ?? 0,
+      startedAt: row.started_at,
+      finishedAt: row.finished_at,
+    };
+  }
+
   async recordBall(input: RecordBallInput): Promise<{ innings: Innings; event: BallEvent }> {
     const { data, error } = await this.db().rpc("record_ball_event", {
       p_match_id: input.matchId,
@@ -687,6 +724,104 @@ export class SupabaseRepository implements CricketRepository {
     return mapMatch(row);
   }
 
+  async createTournament(input: CreateTournamentInput): Promise<Tournament> {
+    const rows = await this.one<Row[]>(
+      this.db()
+        .from("tournaments")
+        .insert({
+          name: input.name,
+          slug: slugify(input.name),
+          format: input.format ?? "T20",
+          country: input.country ?? "Nepal",
+          description: input.description ?? "",
+        })
+        .select("*"),
+    );
+    const row = rows[0];
+    if (!row) throw new Error("Could not create tournament");
+    this.audit(input.actor, "tournament.create", "tournament", row.id, input.name);
+    return mapTournament(row);
+  }
+
+  async createSeason(input: CreateSeasonInput): Promise<Season> {
+    const status = input.status ?? "upcoming";
+    const rows = await this.one<Row[]>(
+      this.db()
+        .from("seasons")
+        .insert({
+          tournament_id: input.tournamentId,
+          name: input.name,
+          slug: slugify(input.name),
+          year: input.year,
+          start_date: input.startDate,
+          end_date: input.endDate,
+          status,
+          description: input.description ?? "",
+        })
+        .select("*"),
+    );
+    const row = rows[0];
+    if (!row) throw new Error("Could not create season");
+    if (status === "active") {
+      const { error } = await this.db().from("seasons").update({ status: "completed" }).eq("status", "active").neq("id", row.id);
+      if (error) throw new Error(`Season created, but previous active seasons could not be closed: ${error.message}`);
+    }
+    this.audit(input.actor, "season.create", "season", row.id, input.name);
+    return mapSeason(row);
+  }
+
+  async updateSeasonStatus(seasonId: string, status: SeasonStatus, actor?: Actor): Promise<Season> {
+    const rows = await this.one<Row[]>(this.db().from("seasons").update({ status }).eq("id", seasonId).select("*"));
+    const row = rows[0];
+    if (!row) throw new Error("Season not found");
+    if (status === "active") {
+      const { error } = await this.db().from("seasons").update({ status: "completed" }).eq("status", "active").neq("id", seasonId);
+      if (error) throw new Error(`Season activated, but previous active seasons could not be closed: ${error.message}`);
+    }
+    this.audit(actor, "season.status", "season", seasonId, status);
+    return mapSeason(row);
+  }
+
+  async createVenue(input: CreateVenueInput): Promise<Venue> {
+    const rows = await this.one<Row[]>(
+      this.db()
+        .from("venues")
+        .insert({
+          name: input.name,
+          slug: slugify(input.name),
+          city: input.city,
+          country: input.country ?? "Nepal",
+          capacity: input.capacity ?? null,
+          description: input.description ?? "",
+        })
+        .select("*"),
+    );
+    const row = rows[0];
+    if (!row) throw new Error("Could not create venue");
+    this.audit(input.actor, "venue.create", "venue", row.id, input.name);
+    return mapVenue(row);
+  }
+
+  async updateVenue(venueId: string, patch: Partial<Venue>, actor?: Actor): Promise<Venue> {
+    const rows = await this.one<Row[]>(
+      this.db()
+        .from("venues")
+        .update({
+          name: patch.name,
+          city: patch.city,
+          country: patch.country,
+          capacity: patch.capacity,
+          description: patch.description,
+        })
+        .eq("id", venueId)
+        .select("*"),
+    );
+    const row = rows[0];
+    if (!row) throw new Error("Venue not found");
+    this.audit(actor, "venue.update", "venue", venueId, JSON.stringify(patch));
+    return mapVenue(row);
+  }
+
   async createTeam(input: CreateTeamInput): Promise<Team> {
     const rows = await this.one<Row[]>(
       this.db()
@@ -796,6 +931,9 @@ export class SupabaseRepository implements CricketRepository {
           tags: input.tags,
           seo_title: input.seoTitle ?? null,
           meta_description: input.metaDescription ?? input.excerpt,
+          featured_image: input.featuredImage ?? null,
+          image_caption: input.imageCaption ?? null,
+          canonical_url: input.canonicalUrl ?? null,
           status,
           published_at: status === "published" ? new Date().toISOString() : null,
           featured: input.featured ?? false,
@@ -804,11 +942,47 @@ export class SupabaseRepository implements CricketRepository {
     );
     const row = rows[0];
     if (!row) throw new Error("Could not create article");
+    await this.syncArticleTags(row.id, input.tags);
+    await this.writeArticleRevision(row, input.actor);
     this.audit(input.actor, "article.create", "article", row.id, input.title);
     return mapArticle(row);
   }
 
+  private async syncArticleTags(articleId: string, tags: string[]): Promise<void> {
+    try {
+      await this.db().from("article_tags").delete().eq("article_id", articleId);
+      if (tags.length > 0) {
+        await this.db()
+          .from("article_tags")
+          .insert(tags.map((tag) => ({ article_id: articleId, tag })));
+      }
+    } catch {
+      // The normalised tag table is an index, not the source of truth.
+    }
+  }
+
+  private async writeArticleRevision(row: Row, actor?: Actor): Promise<void> {
+    try {
+      await this.db().from("news_article_revisions").insert({
+        article_id: row.id,
+        editor_id: actor?.id ?? null,
+        title: row.title,
+        excerpt: row.excerpt,
+        body: row.body,
+        status: row.status,
+      });
+    } catch {
+      // Revision history must never block publishing.
+    }
+  }
+
   async updateArticle(input: UpdateArticleInput): Promise<NewsArticle> {
+    const existing = await this.one<Row[]>(
+      this.db().from("news_articles").select("*").eq("id", input.articleId).limit(1),
+    );
+    const previous = existing[0];
+    if (!previous) throw new Error("Article not found");
+
     const patch: Row = {};
     const p = input.patch;
     if (p.title !== undefined) patch.title = p.title;
@@ -823,6 +997,9 @@ export class SupabaseRepository implements CricketRepository {
     }
     if (p.seoTitle !== undefined) patch.seo_title = p.seoTitle;
     if (p.metaDescription !== undefined) patch.meta_description = p.metaDescription;
+    if (p.featuredImage !== undefined) patch.featured_image = p.featuredImage;
+    if (p.imageCaption !== undefined) patch.image_caption = p.imageCaption;
+    if (p.canonicalUrl !== undefined) patch.canonical_url = p.canonicalUrl;
     if (p.featured !== undefined) patch.featured = p.featured;
     patch.updated_at = new Date().toISOString();
     const rows = await this.one<Row[]>(
@@ -830,8 +1007,34 @@ export class SupabaseRepository implements CricketRepository {
     );
     const row = rows[0];
     if (!row) throw new Error("Article not found");
+    await this.writeArticleRevision(previous, input.actor);
+    if (p.tags !== undefined) await this.syncArticleTags(row.id, p.tags);
     this.audit(input.actor, "article.update", "article", input.articleId, JSON.stringify(Object.keys(patch)));
     return mapArticle(row);
+  }
+
+  async getArticleRevisions(articleId: string): Promise<ArticleRevision[]> {
+    try {
+      const rows = await this.one<Row[]>(
+        this.db()
+          .from("news_article_revisions")
+          .select("*")
+          .eq("article_id", articleId)
+          .order("created_at", { ascending: false }),
+      );
+      return rows.map((row) => ({
+        id: row.id,
+        articleId: row.article_id,
+        editorId: row.editor_id,
+        title: row.title,
+        excerpt: row.excerpt,
+        body: row.body,
+        status: row.status,
+        createdAt: row.created_at,
+      }));
+    } catch {
+      return [];
+    }
   }
 
   async archiveArticle(articleId: string, actor?: Actor): Promise<void> {

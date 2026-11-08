@@ -5,7 +5,9 @@ import type {
   Player,
   Season,
   SeasonBundle,
+  SeasonStatus,
   Team,
+  Tournament,
   UserRole,
   Venue,
 } from "@/types/cricket";
@@ -22,11 +24,15 @@ import type {
 import type {
   Actor,
   ArticleQuery,
+  ArticleRevision,
   AuditLogEntry,
   CreateArticleInput,
   CreateMatchInput,
   CreatePlayerInput,
+  CreateSeasonInput,
   CreateTeamInput,
+  CreateTournamentInput,
+  CreateVenueInput,
   CricketRepository,
   RecordBallInput,
   SearchResultGroup,
@@ -69,9 +75,12 @@ export class DemoRepository implements CricketRepository {
   private bookmarks: Array<{ userId: string; entityType: string; entityId: string }> = [];
   private userPredictions: UserPrediction[] = [];
   private commentReports: Array<{ commentId: string; reporterId: string; reason: string }> = [];
+  private tournaments: Tournament[] = [];
+  private articleRevisions: ArticleRevision[] = [];
 
   constructor() {
     this.db = buildDemoDatabase();
+    this.tournaments = [this.db.tournament];
   }
 
   private audit(actor: Actor | undefined, action: string, entityType: string, entityId: string, details: string) {
@@ -92,6 +101,16 @@ export class DemoRepository implements CricketRepository {
 
   async getSeasons(): Promise<Season[]> {
     return [...this.db.seasons].sort((a, b) => b.year - a.year);
+  }
+
+  async getTournaments(): Promise<Tournament[]> {
+    return [...this.tournaments];
+  }
+
+  async recordSyncLog(entry: Omit<SyncLogEntry, "id">): Promise<SyncLogEntry> {
+    const row: SyncLogEntry = { ...entry, id: newId("sync") };
+    this.syncLogs.unshift(row);
+    return row;
   }
 
   async getActiveSeason(): Promise<Season | null> {
@@ -503,6 +522,87 @@ export class DemoRepository implements CricketRepository {
     return match;
   }
 
+  /* --------------------------- Competition setup --------------------------- */
+
+  async createTournament(input: CreateTournamentInput): Promise<Tournament> {
+    const slug = slugify(input.name);
+    if (this.tournaments.some((row) => row.slug === slug)) throw new Error("A tournament with that name already exists");
+    const tournament: Tournament = {
+      id: newId("tournament"),
+      name: input.name,
+      slug,
+      format: input.format ?? "T20",
+      country: input.country ?? "Nepal",
+      description: input.description ?? "",
+    };
+    this.tournaments.push(tournament);
+    this.audit(input.actor, "tournament.create", "tournament", tournament.id, tournament.name);
+    return tournament;
+  }
+
+  async createSeason(input: CreateSeasonInput): Promise<Season> {
+    const slug = slugify(input.name);
+    if (this.db.seasons.some((row) => row.slug === slug)) throw new Error("A season with that name already exists");
+    if (!this.tournaments.some((row) => row.id === input.tournamentId)) throw new Error("Tournament not found");
+    if (new Date(input.endDate) < new Date(input.startDate)) throw new Error("Season end date must be after the start date");
+    const status = input.status ?? "upcoming";
+    const season: Season = {
+      id: newId("season"),
+      tournamentId: input.tournamentId,
+      name: input.name,
+      slug,
+      year: input.year,
+      startDate: input.startDate,
+      endDate: input.endDate,
+      status,
+      description: input.description ?? "",
+      settings: { pointsWin: 2, pointsTie: 1, pointsNoResult: 1, ballsPerInnings: 120, allOutUsesFullQuota: true },
+      createdAt: new Date().toISOString(),
+    };
+    if (status === "active") {
+      for (const row of this.db.seasons) if (row.status === "active") row.status = "completed";
+    }
+    this.db.seasons.push(season);
+    this.audit(input.actor, "season.create", "season", season.id, season.name);
+    return season;
+  }
+
+  async updateSeasonStatus(seasonId: string, status: SeasonStatus, actor?: Actor): Promise<Season> {
+    const season = this.db.seasons.find((row) => row.id === seasonId);
+    if (!season) throw new Error("Season not found");
+    if (status === "active") {
+      for (const row of this.db.seasons) if (row.id !== seasonId && row.status === "active") row.status = "completed";
+    }
+    season.status = status;
+    this.audit(actor, "season.status", "season", seasonId, status);
+    return season;
+  }
+
+  async createVenue(input: CreateVenueInput): Promise<Venue> {
+    const slug = slugify(input.name);
+    if (this.db.venues.some((row) => row.slug === slug)) throw new Error("A venue with that name already exists");
+    const venue: Venue = {
+      id: newId("venue"),
+      name: input.name,
+      slug,
+      city: input.city,
+      country: input.country ?? "Nepal",
+      capacity: input.capacity ?? null,
+      description: input.description ?? "",
+    };
+    this.db.venues.push(venue);
+    this.audit(input.actor, "venue.create", "venue", venue.id, venue.name);
+    return venue;
+  }
+
+  async updateVenue(venueId: string, patch: Partial<Venue>, actor?: Actor): Promise<Venue> {
+    const venue = this.db.venues.find((row) => row.id === venueId);
+    if (!venue) throw new Error("Venue not found");
+    Object.assign(venue, patch);
+    this.audit(actor, "venue.update", "venue", venue.id, JSON.stringify(patch));
+    return venue;
+  }
+
   /* --------------------------- Admin CRUD --------------------------- */
 
   async createTeam(input: CreateTeamInput): Promise<Team> {
@@ -591,15 +691,15 @@ export class DemoRepository implements CricketRepository {
       slug,
       excerpt: input.excerpt,
       body: input.body,
-      featuredImage: null,
-      imageCaption: null,
+      featuredImage: input.featuredImage ?? null,
+      imageCaption: input.imageCaption ?? null,
       categoryId: category.id,
       authorId: input.actor?.id ?? "user-editor",
       authorName: input.actor?.email.split("@")[0] ?? "NPL Cricket Hub Editorial",
       tags: input.tags,
       seoTitle: input.seoTitle ?? null,
       metaDescription: input.metaDescription ?? input.excerpt,
-      canonicalUrl: null,
+      canonicalUrl: input.canonicalUrl ?? null,
       status,
       publishedAt: status === "published" ? now : null,
       updatedAt: now,
@@ -607,6 +707,16 @@ export class DemoRepository implements CricketRepository {
       featured: input.featured ?? false,
     };
     this.db.articles.push(article);
+    this.articleRevisions.unshift({
+      id: newId("revision"),
+      articleId: article.id,
+      editorId: input.actor?.id ?? null,
+      title: article.title,
+      excerpt: article.excerpt,
+      body: article.body,
+      status: article.status,
+      createdAt: article.updatedAt,
+    });
     this.audit(input.actor, "article.create", "article", article.id, article.title);
     return article;
   }
@@ -614,12 +724,28 @@ export class DemoRepository implements CricketRepository {
   async updateArticle(input: UpdateArticleInput): Promise<NewsArticle> {
     const article = this.db.articles.find((row) => row.id === input.articleId);
     if (!article) throw new Error("Article not found");
+    this.articleRevisions.unshift({
+      id: newId("revision"),
+      articleId: article.id,
+      editorId: input.actor?.id ?? null,
+      title: article.title,
+      excerpt: article.excerpt,
+      body: article.body,
+      status: article.status,
+      createdAt: new Date().toISOString(),
+    });
     const wasPublished = article.status === "published";
     Object.assign(article, input.patch);
     article.updatedAt = new Date().toISOString();
     if (!wasPublished && article.status === "published") article.publishedAt = article.updatedAt;
     this.audit(input.actor, "article.update", "article", article.id, JSON.stringify(Object.keys(input.patch)));
     return article;
+  }
+
+  async getArticleRevisions(articleId: string): Promise<ArticleRevision[]> {
+    return this.articleRevisions
+      .filter((row) => row.articleId === articleId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
   async archiveArticle(articleId: string, actor?: Actor): Promise<void> {

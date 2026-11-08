@@ -8,6 +8,23 @@ export const loginSchema = z.object({
   next: z.string().optional().default(""),
 });
 
+export const registrationSchema = z
+  .object({
+    username: z
+      .string()
+      .trim()
+      .min(3, "Username must be at least 3 characters")
+      .max(30, "Username must be 30 characters or fewer")
+      .regex(/^[a-zA-Z0-9_]+$/, "Use letters, numbers and underscores only"),
+    email: emailSchema,
+    password: z.string().min(8, "Password must be at least 8 characters").max(72, "Password must be 72 characters or fewer"),
+    confirmPassword: z.string().min(1, "Confirm your password"),
+  })
+  .refine((values) => values.password === values.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
+
 const idSchema = z.string().trim().min(1, "Selection is required").max(120);
 
 export const voteSchema = z.object({
@@ -116,6 +133,53 @@ export const createPlayerSchema = z.object({
   seasonId: z.string().trim().max(120).optional().default(""),
 });
 
+export const seasonStatusSchema = z.enum(["upcoming", "active", "completed"]);
+
+export const createTournamentSchema = z.object({
+  name: z.string().trim().min(3, "Tournament name is required").max(120),
+  format: z.string().trim().min(2).max(40).optional().default("T20"),
+  country: z.string().trim().min(2).max(80).optional().default("Nepal"),
+  description: z.string().trim().max(1000).optional().default(""),
+});
+
+export const createSeasonSchema = z.object({
+  tournamentId: idSchema,
+  name: z.string().trim().min(3, "Season name is required").max(120),
+  year: z.coerce.number().int().min(1900).max(2200),
+  startDate: z.string().trim().min(8, "Choose a start date").max(20),
+  endDate: z.string().trim().min(8, "Choose an end date").max(20),
+  status: seasonStatusSchema.optional().default("upcoming"),
+  description: z.string().trim().max(1000).optional().default(""),
+});
+
+export const seasonStatusUpdateSchema = z.object({
+  seasonId: idSchema,
+  status: seasonStatusSchema,
+});
+
+export const createVenueSchema = z.object({
+  name: z.string().trim().min(2, "Venue name is required").max(120),
+  city: z.string().trim().min(2, "City is required").max(120),
+  country: z.string().trim().min(2).max(80).optional().default("Nepal"),
+  capacity: z.preprocess(
+    (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+    z.coerce.number().int().min(1).max(500000).optional(),
+  ),
+  description: z.string().trim().max(2000).optional().default(""),
+});
+
+export const updateVenueSchema = z.object({
+  venueId: idSchema,
+  name: z.string().trim().min(2).max(120),
+  city: z.string().trim().min(2).max(120),
+  country: z.string().trim().min(2).max(80).optional().default("Nepal"),
+  capacity: z.preprocess(
+    (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+    z.coerce.number().int().min(1).max(500000).optional(),
+  ),
+  description: z.string().trim().max(2000).optional().default(""),
+});
+
 export const createMatchSchema = z.object({
   seasonId: idSchema,
   teamAId: idSchema,
@@ -182,6 +246,22 @@ export const articleSchema = z.object({
   status: articleStatusSchema.default("draft"),
   seoTitle: z.string().trim().max(200).optional().default(""),
   metaDescription: z.string().trim().max(400).optional().default(""),
+  featuredImage: z
+    .string()
+    .trim()
+    .max(2000)
+    .optional()
+    .default("")
+    .transform((value) => value || null),
+  imageCaption: z.string().trim().max(240).optional().default(""),
+  canonicalUrl: z
+    .string()
+    .trim()
+    .max(2000)
+    .optional()
+    .default("")
+    .refine((value) => value === "" || value.startsWith("/") || value.startsWith("https://"), "Canonical URL must be a path or an https URL")
+    .transform((value) => value || null),
   featured: z
     .string()
     .optional()

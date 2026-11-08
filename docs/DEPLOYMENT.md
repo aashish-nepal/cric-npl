@@ -1,10 +1,12 @@
 # Deployment
 
-## Status: not deployed (no credentials)
+## Status: not deployed
 
-No Vercel/Cloudflare/domain credentials were available in this environment, so nothing
-below has been executed yet. The instructions, env matrix and CI gates are ready and
-the build is verified locally; a real operator can execute the checklist as-is.
+The hosted Supabase endpoint in the local environment responded to read-only checks and
+has representative tables introduced by migration `0004`. Its current public data is
+incomplete: one season and no teams, players, venues, matches, ball events or articles. No
+hosted schema or content was changed. Vercel, Cloudflare and domain credentials/configuration
+were not available, so no cloud deployment has been attempted.
 
 ## Recommended topology
 
@@ -28,8 +30,10 @@ the build is verified locally; a real operator can execute the checklist as-is.
 
 ## Go-live checklist (execute in order)
 
-1. **Supabase project**: create, run `0001→0002→0003` migrations in the SQL editor
-   (skipping `seed.sql` — demo only). Enable daily backups.
+1. **Supabase project**: compare the deployed schema, RLS policies, RPCs, Storage bucket
+   and migration history with `0001→0002→0003→0004`. The `0004` tables were visible in a
+   read-only check, so inspect before applying anything; do not blindly replay migrations.
+   Skip `seed.sql` (demo only). Enable daily backups.
 2. **Auth users**: create auth users, then assign roles via SQL (see `docs/OPERATIONS.md` §2).
 3. **Reference data**: seasons → teams → players → venues → fixtures via `/admin`.
 4. **Vercel**: import repo, configure the env matrix above, deploy a preview first.

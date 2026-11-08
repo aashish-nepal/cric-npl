@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { loadSite } from "@/services/cricket";
 import { PageHeader } from "@/components/layout/section-header";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
@@ -13,17 +14,25 @@ import type { Player } from "@/types/cricket";
 export const metadata: Metadata = {
   title: "Compare NPL players",
   description: "Compare two Nepal Premier League players side by side: runs, average, strike rate, wickets, economy and more.",
-  alternates: { canonical: "/compare" },
+  alternates: { canonical: "/compare", languages: { en: "/compare", ne: "/ne/statistics" } },
 };
 
-export default async function ComparePage({ searchParams }: { searchParams: Promise<{ a?: string; b?: string }> }) {
-  const { a, b } = await searchParams;
+export default async function ComparePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ a?: string; b?: string; season?: string }>;
+}) {
+  const { a, b, season: seasonSlug } = await searchParams;
   const site = await loadSite();
-  const squadByPlayer = new Map(site.bundle.squads.map((row) => [row.playerId, row]));
-  const teamById = site.analytics.teamById;
-  const battingByPlayer = new Map(site.analytics.batting.map((row) => [row.playerId, row]));
-  const bowlingByPlayer = new Map(site.analytics.bowling.map((row) => [row.playerId, row]));
-  const players = site.bundle.players.filter((player) => squadByPlayer.has(player.id));
+  const season = seasonSlug ? site.seasons.find((row) => row.slug === seasonSlug) : site.activeSeason;
+  const analytics = season ? site.analyticsBySeason.get(season.id) : undefined;
+  const bundle = season ? site.bundles.find((row) => row.season.id === season.id) : undefined;
+  if (!season || !analytics || !bundle) notFound();
+  const squadByPlayer = new Map(bundle.squads.map((row) => [row.playerId, row]));
+  const teamById = analytics.teamById;
+  const battingByPlayer = new Map(analytics.batting.map((row) => [row.playerId, row]));
+  const bowlingByPlayer = new Map(analytics.bowling.map((row) => [row.playerId, row]));
+  const players = bundle.players.filter((player) => squadByPlayer.has(player.id));
   const playerA = players.find((player) => player.slug === a) ?? null;
   const playerB = players.find((player) => player.slug === b) ?? null;
 
@@ -38,9 +47,23 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
         <Breadcrumbs items={[{ label: "Compare players" }]} />
       </div>
       <div className="container-page py-6 sm:py-8">
-        <form action="/compare" method="get" className="grid gap-3 rounded-lg border border-border bg-card p-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+        <form action="/compare" method="get" className="grid gap-3 rounded-lg border border-border bg-card p-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-end">
           <PlayerSelect name="a" label="Player A" players={players} defaultValue={a ?? ""} />
           <PlayerSelect name="b" label="Player B" players={players} defaultValue={b ?? ""} />
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold text-muted-foreground">Season</span>
+            <select
+              name="season"
+              defaultValue={season.slug}
+              className="h-10 w-full rounded-md border border-input bg-surface px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {site.seasons.map((row) => (
+                <option key={row.id} value={row.slug}>
+                  {row.name}
+                </option>
+              ))}
+            </select>
+          </label>
           <button type="submit" className="h-10 rounded-md bg-primary px-4 text-sm font-semibold text-white hover:bg-primary-dark">
             Compare
           </button>
@@ -88,8 +111,8 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
                 <TableBody>
                   <CompareRow
                     label="Matches"
-                    a={site.analytics.matches.filter((match) => match.innings.some((innings) => innings.batting.some((row) => row.playerId === playerA.id) || innings.bowling.some((row) => row.playerId === playerA.id))).length}
-                    b={site.analytics.matches.filter((match) => match.innings.some((innings) => innings.batting.some((row) => row.playerId === playerB.id) || innings.bowling.some((row) => row.playerId === playerB.id))).length}
+                    a={analytics.matches.filter((match) => match.innings.some((innings) => innings.batting.some((row) => row.playerId === playerA.id) || innings.bowling.some((row) => row.playerId === playerA.id))).length}
+                    b={analytics.matches.filter((match) => match.innings.some((innings) => innings.batting.some((row) => row.playerId === playerB.id) || innings.bowling.some((row) => row.playerId === playerB.id))).length}
                   />
                   <CompareRow label="Innings batted" a={battingByPlayer.get(playerA.id)?.innings ?? 0} b={battingByPlayer.get(playerB.id)?.innings ?? 0} />
                   <CompareRow label="Runs" a={battingByPlayer.get(playerA.id)?.runs ?? 0} b={battingByPlayer.get(playerB.id)?.runs ?? 0} highlight />
@@ -107,7 +130,7 @@ export default async function ComparePage({ searchParams }: { searchParams: Prom
               </Table>
             </div>
             <p className="text-xs text-muted-foreground">
-              All figures are for {site.activeSeason.name} and are computed from recorded ball events. Small samples can
+              All figures are for {season.name} and are computed from recorded ball events. Small samples can
               be misleading; check innings and balls alongside the headline numbers.
             </p>
           </div>

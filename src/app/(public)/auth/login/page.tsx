@@ -103,6 +103,10 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           By signing in you agree to the <Link href="/terms" className="font-semibold text-primary hover:underline">terms of use</Link>{" "}
           and <Link href="/privacy-policy" className="font-semibold text-primary hover:underline">privacy policy</Link>.
         </p>
+        <p className="mt-4 border-t border-border pt-4 text-center text-sm text-muted-foreground">
+          New to NPL Cricket Hub?{" "}
+          <Link href="/auth/register" className="font-semibold text-primary hover:underline">Create an account</Link>
+        </p>
       </div>
     </div>
   );

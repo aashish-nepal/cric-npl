@@ -10,8 +10,10 @@ import type {
   PlayerRole,
   Season,
   SeasonBundle,
+  SeasonStatus,
   Team,
   TossDecision,
+  Tournament,
   UserRole,
   Venue,
   WicketType,
@@ -118,6 +120,45 @@ export interface CreateMatchInput {
   actor?: Actor;
 }
 
+export interface CreateTournamentInput {
+  name: string;
+  format?: string;
+  country?: string;
+  description?: string;
+  actor?: Actor;
+}
+
+export interface CreateSeasonInput {
+  tournamentId: string;
+  name: string;
+  year: number;
+  startDate: string;
+  endDate: string;
+  status?: SeasonStatus;
+  description?: string;
+  actor?: Actor;
+}
+
+export interface CreateVenueInput {
+  name: string;
+  city: string;
+  country?: string;
+  capacity?: number | null;
+  description?: string;
+  actor?: Actor;
+}
+
+export interface ArticleRevision {
+  id: string;
+  articleId: string;
+  editorId: string | null;
+  title: string;
+  excerpt: string;
+  body: string;
+  status: NewsArticle["status"];
+  createdAt: string;
+}
+
 export interface UpdateMatchInput {
   matchId: string;
   patch: Partial<
@@ -136,6 +177,9 @@ export interface CreateArticleInput {
   status?: NewsArticle["status"];
   seoTitle?: string | null;
   metaDescription?: string | null;
+  featuredImage?: string | null;
+  imageCaption?: string | null;
+  canonicalUrl?: string | null;
   featured?: boolean;
   actor?: Actor;
 }
@@ -154,6 +198,9 @@ export interface UpdateArticleInput {
       | "status"
       | "seoTitle"
       | "metaDescription"
+      | "featuredImage"
+      | "imageCaption"
+      | "canonicalUrl"
       | "featured"
     >
   >;
@@ -166,6 +213,7 @@ export interface CricketRepository {
 
   /* Reads */
   getSeasons(): Promise<Season[]>;
+  getTournaments(): Promise<Tournament[]>;
   getActiveSeason(): Promise<Season | null>;
   getSeasonBySlug(slug: string): Promise<Season | null>;
   getSeasonBundle(seasonId: string): Promise<SeasonBundle>;
@@ -184,6 +232,7 @@ export interface CricketRepository {
   search(query: string): Promise<SearchResultGroup[]>;
   getAuditLogs(limit?: number): Promise<AuditLogEntry[]>;
   getSyncLogs(limit?: number): Promise<SyncLogEntry[]>;
+  recordSyncLog(entry: Omit<SyncLogEntry, "id">): Promise<SyncLogEntry>;
 
   /* Scoring + administration */
   recordBall(input: RecordBallInput): Promise<{ innings: Innings; event: BallEvent }>;
@@ -193,6 +242,11 @@ export interface CricketRepository {
   completeMatch(matchId: string, winnerId: string | null, summary: string, actor?: Actor): Promise<void>;
   updateMatch(input: UpdateMatchInput): Promise<Match>;
   createMatch(input: CreateMatchInput): Promise<Match>;
+  createTournament(input: CreateTournamentInput): Promise<Tournament>;
+  createSeason(input: CreateSeasonInput): Promise<Season>;
+  updateSeasonStatus(seasonId: string, status: SeasonStatus, actor?: Actor): Promise<Season>;
+  createVenue(input: CreateVenueInput): Promise<Venue>;
+  updateVenue(venueId: string, patch: Partial<Venue>, actor?: Actor): Promise<Venue>;
   createTeam(input: CreateTeamInput): Promise<Team>;
   updateTeam(teamId: string, patch: Partial<Team>, actor?: Actor): Promise<Team>;
   createPlayer(input: CreatePlayerInput): Promise<Player>;
@@ -201,6 +255,7 @@ export interface CricketRepository {
   createArticle(input: CreateArticleInput): Promise<NewsArticle>;
   updateArticle(input: UpdateArticleInput): Promise<NewsArticle>;
   archiveArticle(articleId: string, actor?: Actor): Promise<void>;
+  getArticleRevisions(articleId: string): Promise<ArticleRevision[]>;
   addComment(articleId: string, userId: string, username: string, body: string): Promise<Comment>;
   moderateComment(commentId: string, status: Comment["status"], actor: Actor): Promise<void>;
   reportComment(commentId: string, reporterId: string, reason: string): Promise<void>;

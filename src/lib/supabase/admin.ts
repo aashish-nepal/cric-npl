@@ -1,12 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { hasServiceRole, supabaseAnonKey, supabaseUrl } from "./config";
 
-export function isSupabaseConfigured(): boolean {
-  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-}
-
-export function hasServiceRole(): boolean {
-  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
-}
+export { hasServiceRole, isSupabaseConfigured } from "./config";
 
 let cachedAdmin: SupabaseClient | null = null;
 
@@ -18,9 +13,14 @@ let cachedAdmin: SupabaseClient | null = null;
  */
 export function getSupabaseAdminClient(): SupabaseClient {
   if (cachedAdmin) return cachedAdmin;
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) throw new Error("Supabase is not configured");
+  const url = supabaseUrl();
+  const key = hasServiceRole() ? process.env.SUPABASE_SERVICE_ROLE_KEY : supabaseAnonKey();
+  if (!url || !key) {
+    throw new Error(
+      "Supabase is not configured with valid credentials. Set NEXT_PUBLIC_SUPABASE_URL and a real anon key, " +
+        "or remove them to run in demo mode.",
+    );
+  }
   cachedAdmin = createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });

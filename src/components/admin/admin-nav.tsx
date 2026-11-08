@@ -6,11 +6,13 @@ import {
   BarChart3,
   Flag,
   LayoutDashboard,
+  MapPin,
   MessageSquare,
   Newspaper,
   Radio,
   ServerCog,
   ShieldCheck,
+  Trophy,
   Users,
   UsersRound,
 } from "lucide-react";
@@ -37,6 +39,8 @@ const ICONS = {
   system: ServerCog,
   analytics: BarChart3,
   flag: Flag,
+  competition: Trophy,
+  venues: MapPin,
 } as const;
 
 const ITEMS: AdminNavItem[] = [
@@ -56,10 +60,24 @@ const ITEMS: AdminNavItem[] = [
     permission: "scores.manage",
   },
   {
+    href: "/admin/competitions",
+    label: "Competition",
+    description: "Tournaments & seasons",
+    icon: "competition",
+    permission: "competition.manage",
+  },
+  {
     href: "/admin/teams",
     label: "Teams & squads",
-    description: "Competition setup",
+    description: "Squads and rosters",
     icon: "teams",
+    permission: "competition.manage",
+  },
+  {
+    href: "/admin/venues",
+    label: "Venues",
+    description: "Grounds & capacity",
+    icon: "venues",
     permission: "competition.manage",
   },
   {

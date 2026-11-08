@@ -10,7 +10,7 @@ import { buttonVariants } from "@/components/ui/button";
 export const metadata: Metadata = {
   title: "NPL news and analysis",
   description: "Independent Nepal Premier League news, match reports, previews, player stories and cricket analysis.",
-  alternates: { canonical: "/news" },
+  alternates: { canonical: "/news", languages: { en: "/news", ne: "/ne/news" } },
 };
 
 export default async function NewsPage({ searchParams }: { searchParams: Promise<{ category?: string; tag?: string; page?: string }> }) {

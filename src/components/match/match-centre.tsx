@@ -8,7 +8,7 @@ import { LiveBadge } from "@/components/cricket/badges";
 import { ScorecardBlock } from "./scorecard";
 import { CommentaryList } from "./commentary";
 import { FallOfWickets, PartnershipsTable, PlayingXILists } from "./partnerships";
-import { AutoRefresh } from "./auto-refresh";
+import { LiveMatchUpdates } from "./live-match-updates";
 import { JsonLd } from "@/components/seo/json-ld";
 import { sportsEventJsonLd } from "@/lib/seo";
 import { cn, formatKathmanduDateTime, formatNumber } from "@/lib/utils";
@@ -77,7 +77,6 @@ export function MatchCentre({ data }: { data: MatchCentreData }) {
   return (
     <>
       <JsonLd data={event} />
-      {live ? <AutoRefresh /> : null}
       <div className="border-b border-border bg-surface">
         <div className="container-page py-4">
           <Breadcrumbs
@@ -142,6 +141,7 @@ export function MatchCentre({ data }: { data: MatchCentreData }) {
               <Radio className="h-3.5 w-3.5" aria-hidden="true" />
               Updated {formatKathmanduDateTime(match.lastUpdated)} NPT
             </span>
+            {live ? <LiveMatchUpdates matchId={match.id} live={live} /> : null}
           </div>
         </div>
       </header>
@@ -184,7 +184,7 @@ export function MatchCentre({ data }: { data: MatchCentreData }) {
               <h2 id="commentary-heading" className="text-sm font-bold tracking-tight">
                 Ball-by-ball commentary
               </h2>
-              {live ? <span className="text-[10px] font-semibold uppercase tracking-wider text-live">Auto-refreshing</span> : null}
+              {live ? <span className="text-[10px] font-semibold uppercase tracking-wider text-live">Live updates</span> : null}
             </div>
             <CommentaryList items={data.commentary} />
           </section>

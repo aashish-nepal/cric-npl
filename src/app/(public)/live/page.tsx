@@ -11,7 +11,7 @@ import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 export const metadata: Metadata = {
   title: "Live NPL scores",
   description: "Live Nepal Premier League scores with ball-by-ball commentary, scorecards and match centres.",
-  alternates: { canonical: "/live" },
+  alternates: { canonical: "/live", languages: { en: "/live", ne: "/ne/live" } },
 };
 
 export default async function LivePage() {

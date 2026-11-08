@@ -45,7 +45,7 @@ export default function AboutPage() {
               : "This deployment is connected to a Supabase database. The data source for each match is shown on its match page."}
           </p>
 
-          <h2 id="editorial-policy">Editorial policy</h2>
+          <h2 id="editorial-policy">Editorial standards</h2>
           <h3>Independence</h3>
           <p>
             We are not affiliated with the NPL, CAN or any franchise. Team names and competition names are used for
@@ -66,6 +66,10 @@ export default function AboutPage() {
           <p>
             We do not publish automatically generated match reports as journalism. Computed statistics and projections
             are labelled and trace back to ball-by-ball records.
+          </p>
+          <p>
+            Read the full <Link href="/editorial-policy">editorial policy</Link> and{" "}
+            <Link href="/corrections-policy">corrections policy</Link>.
           </p>
 
           <h2>Accessibility and performance</h2>
@@ -92,8 +96,8 @@ export default function AboutPage() {
             We do not offer betting, odds or paid prediction products.
           </InfoCard>
           <InfoCard icon={<Mail className="h-4 w-4" />} title="Corrections">
-            <Link href="/contact" className="font-semibold text-primary hover:underline">
-              Request a correction →
+            <Link href="/corrections-policy" className="font-semibold text-primary hover:underline">
+              How corrections work →
             </Link>
           </InfoCard>
         </aside>
